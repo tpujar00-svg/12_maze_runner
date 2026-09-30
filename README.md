@@ -1,3 +1,4 @@
+#PES1UG24CS500 - TEJASWINI R PUJAR
 # Maze Runner
 
 Navigate through a procedurally generated maze to reach the exit using **Pygame**.
