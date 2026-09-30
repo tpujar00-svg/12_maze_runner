@@ -10,6 +10,7 @@ BG = (240, 235, 220)
 WALL_COLOR = (40, 40, 60)
 EXIT_COLOR = (80, 200, 80)
 HINT_COLOR = (255, 215, 0)
+FOG_COLOR = (15, 15, 25)
 
 COLS, ROWS = 15, 13
 
@@ -52,7 +53,6 @@ class GameEngine:
         self.elapsed = 0
         self.won = False
 
-        # Task 1: BFS hint toggle
         self.show_hint = False
 
     def handle_events(self):
@@ -64,11 +64,9 @@ class GameEngine:
 
             if event.type == pygame.KEYDOWN:
 
-                # Generate new maze
                 if event.key == pygame.K_r:
                     self.reset()
 
-                # Toggle shortest path hint
                 if event.key == pygame.K_h:
                     self.show_hint = not self.show_hint
 
@@ -92,14 +90,11 @@ class GameEngine:
         queue = deque([start])
         previous = {start: None}
 
-        # N, S, E, W
-        # wall_dir = wall on current cell
-        # opposite_dir = wall on neighbouring cell
         directions = [
-            (-1, 0, 0, 1),  # North
-            (1, 0, 1, 0),   # South
-            (0, 1, 2, 3),   # East
-            (0, -1, 3, 2)   # West
+            (-1, 0, 0, 1),
+            (1, 0, 1, 0),
+            (0, 1, 2, 3),
+            (0, -1, 3, 2)
         ]
 
         while queue:
@@ -116,11 +111,9 @@ class GameEngine:
                 nr = r + dr
                 nc = c + dc
 
-                # Outside maze
                 if not (0 <= nr < ROWS and 0 <= nc < COLS):
                     continue
 
-                # There must be no wall between the two cells
                 if self.walls[r][c][wall_dir]:
                     continue
 
@@ -130,21 +123,16 @@ class GameEngine:
                 neighbour = (nr, nc)
 
                 if neighbour not in previous:
-
                     previous[neighbour] = current
                     queue.append(neighbour)
 
-        # No path found
         if target not in previous:
             return []
 
-        # Reconstruct path
         path = []
-
         current = target
 
         while current is not None:
-
             path.append(current)
             current = previous[current]
 
@@ -168,7 +156,6 @@ class GameEngine:
 
         self.elapsed = time.time() - self.start_time
 
-        # Check whether player reached exit
         if self.player.rect.colliderect(self.exit_rect):
             self.won = True
 
@@ -185,7 +172,6 @@ class GameEngine:
 
                 w = self.walls[r][c]
 
-                # North
                 if w[0]:
                     pygame.draw.line(
                         self.screen,
@@ -195,7 +181,6 @@ class GameEngine:
                         wall_w
                     )
 
-                # South
                 if w[1]:
                     pygame.draw.line(
                         self.screen,
@@ -205,7 +190,6 @@ class GameEngine:
                         wall_w
                     )
 
-                # East
                 if w[2]:
                     pygame.draw.line(
                         self.screen,
@@ -215,7 +199,6 @@ class GameEngine:
                         wall_w
                     )
 
-                # West
                 if w[3]:
                     pygame.draw.line(
                         self.screen,
@@ -240,8 +223,6 @@ class GameEngine:
             x = c * CELL
             y = r * CELL
 
-            # Draw a yellow circle in the centre
-            # of every cell in the shortest path
             center = (
                 x + CELL // 2,
                 y + CELL // 2
@@ -254,17 +235,54 @@ class GameEngine:
                 7
             )
 
+    def draw_fog(self):
+
+        player_r, player_c = self.get_player_cell()
+
+        radius = 3
+
+        fog = pygame.Surface(
+            (WIDTH, ROWS * CELL),
+            pygame.SRCALPHA
+        )
+
+        fog.fill(
+            (15, 15, 25, 230)
+        )
+
+        for r in range(ROWS):
+
+            for c in range(COLS):
+
+                distance = max(
+                    abs(r - player_r),
+                    abs(c - player_c)
+                )
+
+                if distance <= radius:
+
+                    cell_rect = pygame.Rect(
+                        c * CELL,
+                        r * CELL,
+                        CELL,
+                        CELL
+                    )
+
+                    fog.fill(
+                        (0, 0, 0, 0),
+                        cell_rect
+                    )
+
+        self.screen.blit(fog, (0, 0))
+
     def draw(self):
 
         self.screen.fill(BG)
 
-        # Draw maze
         self.draw_maze()
 
-        # Draw BFS shortest path
         self.draw_hint()
 
-        # Draw exit
         pygame.draw.rect(
             self.screen,
             EXIT_COLOR,
@@ -286,10 +304,11 @@ class GameEngine:
             )
         )
 
-        # Draw player
         self.player.draw(self.screen)
 
-        # HUD
+        # Task 2: Fog of War
+        self.draw_fog()
+
         hud = pygame.Rect(
             0,
             ROWS * CELL,
@@ -317,7 +336,6 @@ class GameEngine:
             )
         )
 
-        # Winning screen
         if self.won:
 
             overlay = pygame.Surface(
