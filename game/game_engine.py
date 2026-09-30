@@ -9,16 +9,14 @@ from game.player import Player
 
 
 FPS = 60
+
 BG = (240, 235, 220)
 WALL_COLOR = (40, 40, 60)
 EXIT_COLOR = (80, 200, 80)
 HINT_COLOR = (255, 215, 0)
 FOG_COLOR = (10, 10, 15)
 
-COLS, ROWS = 15, 13
-
-WIDTH = COLS * CELL
-HEIGHT = ROWS * CELL + 60
+HUD_HEIGHT = 60
 
 LEADERBOARD_FILE = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -30,21 +28,177 @@ class GameEngine:
     def __init__(self):
         pygame.init()
 
-        self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
-        pygame.display.set_caption("Maze Runner")
-
         self.clock = pygame.time.Clock()
 
-        self.font = pygame.font.SysFont("monospace", 22)
+        self.font = pygame.font.SysFont(
+            "monospace",
+            22
+        )
+
         self.big_font = pygame.font.SysFont(
             "monospace",
             36,
             bold=True
         )
 
+        # Difficulty settings
+        self.difficulties = {
+            "Easy": (10, 8),
+            "Medium": (15, 13),
+            "Hard": (20, 18)
+        }
+
+        self.difficulty = None
+        self.cols = None
+        self.rows = None
+
+        self.screen = None
+
         self.load_leaderboard()
 
+        # Select difficulty before starting the game
+        self.select_difficulty()
+
         self.reset()
+
+    # ---------------------------------------------------------
+    # DIFFICULTY SELECTION
+    # ---------------------------------------------------------
+
+    def select_difficulty(self):
+        selecting = True
+
+        while selecting:
+
+            for event in pygame.event.get():
+
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    raise SystemExit
+
+                if event.type == pygame.KEYDOWN:
+
+                    if event.key == pygame.K_1:
+                        self.difficulty = "Easy"
+                        selecting = False
+
+                    elif event.key == pygame.K_2:
+                        self.difficulty = "Medium"
+                        selecting = False
+
+                    elif event.key == pygame.K_3:
+                        self.difficulty = "Hard"
+                        selecting = False
+
+            if self.screen is None:
+                self.screen = pygame.display.set_mode(
+                    (700, 400)
+                )
+
+            self.screen.fill(
+                BG
+            )
+
+            title = self.big_font.render(
+                "MAZE RUNNER",
+                True,
+                (30, 30, 50)
+            )
+
+            self.screen.blit(
+                title,
+                (
+                    self.screen.get_width() // 2
+                    - title.get_width() // 2,
+                    50
+                )
+            )
+
+            instruction = self.font.render(
+                "Select Difficulty",
+                True,
+                (50, 50, 70)
+            )
+
+            self.screen.blit(
+                instruction,
+                (
+                    self.screen.get_width() // 2
+                    - instruction.get_width() // 2,
+                    120
+                )
+            )
+
+            easy = self.font.render(
+                "1 - Easy     10 x 8",
+                True,
+                (50, 50, 70)
+            )
+
+            medium = self.font.render(
+                "2 - Medium   15 x 13",
+                True,
+                (50, 50, 70)
+            )
+
+            hard = self.font.render(
+                "3 - Hard     20 x 18",
+                True,
+                (50, 50, 70)
+            )
+
+            self.screen.blit(
+                easy,
+                (
+                    self.screen.get_width() // 2
+                    - easy.get_width() // 2,
+                    180
+                )
+            )
+
+            self.screen.blit(
+                medium,
+                (
+                    self.screen.get_width() // 2
+                    - medium.get_width() // 2,
+                    220
+                )
+            )
+
+            self.screen.blit(
+                hard,
+                (
+                    self.screen.get_width() // 2
+                    - hard.get_width() // 2,
+                    260
+                )
+            )
+
+            pygame.display.flip()
+
+            self.clock.tick(FPS)
+
+        self.cols, self.rows = self.difficulties[
+            self.difficulty
+        ]
+
+        self.resize_window()
+
+    # ---------------------------------------------------------
+    # WINDOW SIZE
+    # ---------------------------------------------------------
+
+    def resize_window(self):
+        width = self.cols * CELL
+        height = self.rows * CELL + HUD_HEIGHT
+
+        self.screen = pygame.display.set_mode(
+            (width, height)
+        )
+
+        pygame.display.set_caption(
+            f"Maze Runner - {self.difficulty}"
+        )
 
     # ---------------------------------------------------------
     # TASK 3: LEADERBOARD
@@ -95,13 +249,18 @@ class GameEngine:
     # ---------------------------------------------------------
 
     def reset(self):
-        self.walls = generate_maze(COLS, ROWS)
+        # Generate a new maze using the currently
+        # selected difficulty.
+        self.walls = generate_maze(
+            self.cols,
+            self.rows
+        )
 
         self.player = Player(0, 0)
 
         self.exit_rect = pygame.Rect(
-            (COLS - 1) * CELL + 5,
-            (ROWS - 1) * CELL + 5,
+            (self.cols - 1) * CELL + 5,
+            (self.rows - 1) * CELL + 5,
             CELL - 10,
             CELL - 10
         )
@@ -125,9 +284,11 @@ class GameEngine:
 
             if event.type == pygame.KEYDOWN:
 
+                # R = New maze of same difficulty
                 if event.key == pygame.K_r:
                     self.reset()
 
+                # H = Toggle BFS hint
                 if event.key == pygame.K_h:
                     self.show_hint = not self.show_hint
 
@@ -148,7 +309,10 @@ class GameEngine:
 
     def get_shortest_path(self):
         start = self.get_player_cell()
-        target = (ROWS - 1, COLS - 1)
+        target = (
+            self.rows - 1,
+            self.cols - 1
+        )
 
         queue = deque([start])
         previous = {start: None}
@@ -172,7 +336,10 @@ class GameEngine:
                 nr = r + dr
                 nc = c + dc
 
-                if not (0 <= nr < ROWS and 0 <= nc < COLS):
+                if not (
+                    0 <= nr < self.rows
+                    and 0 <= nc < self.cols
+                ):
                     continue
 
                 if self.walls[r][c][wall_dir]:
@@ -213,15 +380,19 @@ class GameEngine:
         self.player.move(
             keys,
             self.walls,
-            ROWS,
-            COLS
+            self.rows,
+            self.cols
         )
 
         self.elapsed = time.time() - self.start_time
 
-        if self.player.rect.colliderect(self.exit_rect):
+        if self.player.rect.colliderect(
+            self.exit_rect
+        ):
 
-            self.elapsed = time.time() - self.start_time
+            self.elapsed = (
+                time.time() - self.start_time
+            )
 
             self.won = True
 
@@ -235,10 +406,12 @@ class GameEngine:
     def draw_maze(self):
         wall_w = 3
 
-        for r in range(ROWS):
-            for c in range(COLS):
+        for r in range(self.rows):
+            for c in range(self.cols):
 
-                x, y = c * CELL, r * CELL
+                x = c * CELL
+                y = r * CELL
+
                 w = self.walls[r][c]
 
                 if w[0]:
@@ -315,10 +488,11 @@ class GameEngine:
 
         radius = 3
 
-        # Transparent surface so that visible cells
-        # do not overwrite the maze or BFS hint.
         fog = pygame.Surface(
-            (WIDTH, ROWS * CELL),
+            (
+                self.cols * CELL,
+                self.rows * CELL
+            ),
             pygame.SRCALPHA
         )
 
@@ -332,11 +506,9 @@ class GameEngine:
             )
         )
 
-        # Make cells within radius 3 completely transparent.
-        # This keeps everything underneath visible, including
-        # the yellow BFS hint circles.
-        for r in range(ROWS):
-            for c in range(COLS):
+        # Cells inside radius 3 are transparent.
+        for r in range(self.rows):
+            for c in range(self.cols):
 
                 distance = max(
                     abs(r - player_r),
@@ -357,7 +529,6 @@ class GameEngine:
                         cell_rect
                     )
 
-        # Draw fog ON TOP of maze and hint.
         self.screen.blit(
             fog,
             (0, 0)
@@ -378,8 +549,9 @@ class GameEngine:
         self.screen.blit(
             title,
             (
-                WIDTH // 2 - title.get_width() // 2,
-                ROWS * CELL // 2 + 65
+                self.cols * CELL // 2
+                - title.get_width() // 2,
+                self.rows * CELL // 2 + 65
             )
         )
 
@@ -394,8 +566,9 @@ class GameEngine:
             self.screen.blit(
                 empty,
                 (
-                    WIDTH // 2 - empty.get_width() // 2,
-                    ROWS * CELL // 2 + 100
+                    self.cols * CELL // 2
+                    - empty.get_width() // 2,
+                    self.rows * CELL // 2 + 100
                 )
             )
 
@@ -415,8 +588,11 @@ class GameEngine:
             self.screen.blit(
                 score_text,
                 (
-                    WIDTH // 2 - score_text.get_width() // 2,
-                    ROWS * CELL // 2 + 100 + (index - 1) * 28
+                    self.cols * CELL // 2
+                    - score_text.get_width() // 2,
+                    self.rows * CELL // 2
+                    + 100
+                    + (index - 1) * 28
                 )
             )
 
@@ -456,13 +632,10 @@ class GameEngine:
             )
         )
 
-        # 4. Draw fog ON TOP.
-        # Visible cells are transparent, so the BFS
-        # hint remains visible inside the radius.
+        # 4. Draw transparent fog
         self.draw_fog()
 
-        # 5. Draw player LAST.
-        # Therefore the player is always visible.
+        # 5. Draw player LAST
         self.player.draw(
             self.screen
         )
@@ -473,9 +646,9 @@ class GameEngine:
 
         hud = pygame.Rect(
             0,
-            ROWS * CELL,
-            WIDTH,
-            60
+            self.rows * CELL,
+            self.cols * CELL,
+            HUD_HEIGHT
         )
 
         pygame.draw.rect(
@@ -485,7 +658,8 @@ class GameEngine:
         )
 
         time_surf = self.font.render(
-            f"Time: {self.elapsed:.1f}s   R = New Maze   H = Hint",
+            f"Time: {self.elapsed:.1f}s   "
+            f"R = New Maze   H = Hint",
             True,
             (200, 200, 200)
         )
@@ -494,7 +668,7 @@ class GameEngine:
             time_surf,
             (
                 10,
-                ROWS * CELL + 18
+                self.rows * CELL + 18
             )
         )
 
@@ -505,7 +679,10 @@ class GameEngine:
         if self.won:
 
             overlay = pygame.Surface(
-                (WIDTH, ROWS * CELL),
+                (
+                    self.cols * CELL,
+                    self.rows * CELL
+                ),
                 pygame.SRCALPHA
             )
 
@@ -527,7 +704,8 @@ class GameEngine:
             self.screen.blit(
                 msg,
                 (
-                    WIDTH // 2 - msg.get_width() // 2,
+                    self.cols * CELL // 2
+                    - msg.get_width() // 2,
                     30
                 )
             )
@@ -543,8 +721,9 @@ class GameEngine:
             self.screen.blit(
                 sub,
                 (
-                    WIDTH // 2 - sub.get_width() // 2,
-                    ROWS * CELL - 35
+                    self.cols * CELL // 2
+                    - sub.get_width() // 2,
+                    self.rows * CELL - 35
                 )
             )
 
